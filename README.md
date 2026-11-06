@@ -48,3 +48,14 @@ Roles are enforced on the server. Editing another learner's topic returns 403.
     python manage.py test
 
 19 automated tests cover unlock rules, re-locking, loops, validation, config changes and role enforcement.
+## Seed data
+
+    python seed.py
+
+Creates 30 study sessions over 6 weeks and sets prerequisite chains for the 3 goals / 12 topics.
+
+## Features
+
+- Progress per goal: percent complete, total minutes, per-topic chart
+- Weekly minutes chart for the last 6 weeks
+- Mark complete / Reopen topics (reopening re-locks dependents)

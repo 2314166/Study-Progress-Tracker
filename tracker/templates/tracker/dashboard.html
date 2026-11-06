@@ -88,6 +88,13 @@
                border-radius: 8px; font-weight: 600; cursor: pointer; }
         .mini-btn { float: right; font-size: 12px; padding: 3px 10px; border: 1px solid #cbd5e1;
                     background: white; border-radius: 6px; cursor: pointer; }
+
+        .chart-row { display: flex; align-items: center; gap: 10px; margin: 6px 0; font-size: 13px; }
+        .chart-label { width: 230px; color: #475569; }
+        .chart-track { flex: 1; background: #e2e8f0; border-radius: 6px; height: 14px; overflow: hidden; }
+        .chart-fill { height: 100%; background: linear-gradient(90deg, #6366f1, #8b5cf6); }
+        .chart-val { width: 70px; text-align: right; color: #64748b; }
+        .minutes-note { color: #64748b; font-size: 13px; margin-bottom: 8px; }
     </style>
 </head>
 <body>
@@ -164,10 +171,30 @@
                 <li class="empty">No topics yet.</li>
             {% endfor %}
         </ul>
+
+        <div class="minutes-note" style="margin-top:14px;">⏱️ Total logged: <strong>{{ goal.total_minutes }} min</strong></div>
+        {% for row in goal.chart %}
+            <div class="chart-row">
+                <span class="chart-label">{{ row.title }}</span>
+                <div class="chart-track"><div class="chart-fill" style="width: {{ row.pct }}%;"></div></div>
+                <span class="chart-val">{{ row.minutes }} min</span>
+            </div>
+        {% endfor %}
     </div>
     {% empty %}
         <div class="card empty">No goals yet.</div>
     {% endfor %}
+
+    <h2>📈 Minutes per Week (last 6 weeks)</h2>
+    <div class="card">
+        {% for w in weekly %}
+            <div class="chart-row">
+                <span class="chart-label" style="width:80px;">{{ w.label }}</span>
+                <div class="chart-track"><div class="chart-fill" style="width: {{ w.pct }}%;"></div></div>
+                <span class="chart-val">{{ w.minutes }} min</span>
+            </div>
+        {% endfor %}
+    </div>
 
     <h2>📝 Log a Study Session</h2>
     <div class="card">
