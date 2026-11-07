@@ -1,0 +1,83 @@
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  LEARNER
+  MENTOR
+}
+
+model User {
+  id           Int            @id @default(autoincrement())
+  name         String
+  email        String         @unique
+  passwordHash String
+  role         Role           @default(LEARNER)
+  goals        Goal[]
+  sessions     StudySession[]
+  createdAt    DateTime       @default(now())
+}
+
+model Goal {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  learnerId   Int
+  learner     User     @relation(fields: [learnerId], references: [id])
+  topics      Topic[]
+  createdAt   DateTime @default(now())
+}
+
+model Topic {
+  id          Int            @id @default(autoincrement())
+  title       String
+  description String?
+  completed   Boolean        @default(false)
+  goalId      Int
+  goal        Goal           @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  sessions    StudySession[]
+
+  prerequisites TopicPrerequisite[] @relation("TopicRequirements")
+  dependents    TopicPrerequisite[] @relation("TopicDependents")
+
+  createdAt DateTime @default(now())
+}
+
+model TopicPrerequisite {
+  id             Int @id @default(autoincrement())
+  topicId        Int
+  prerequisiteId Int
+
+  topic        Topic @relation("TopicRequirements", fields: [topicId], references: [id], onDelete: Cascade)
+  prerequisite Topic @relation("TopicDependents", fields: [prerequisiteId], references: [id], onDelete: Cascade)
+
+  @@unique([topicId, prerequisiteId])
+}
+
+model StudySession {
+  id      Int      @id @default(autoincrement())
+  userId  Int
+  topicId Int
+  date    DateTime
+  minutes Int
+  note    String?
+
+  user  User  @relation(fields: [userId], references: [id])
+  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+}
+
+model AppSetting {
+  id               Int @id @default(1)
+  minMinutes       Int @default(5)
+  maxMinutes       Int @default(480)
+  maxPrerequisites Int @default(5)
+}
+

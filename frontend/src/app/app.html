@@ -1,0 +1,414 @@
+
+<div class="app-shell">
+
+  @if (!user) {
+    <div class="login-page">
+      <div class="login-card">
+        <div class="brand">
+          <div class="brand-icon">ST</div>
+          <h1>StudyTrack</h1>
+        </div>
+
+        <p class="subtitle">Your personal learning companion</p>
+        <h2>{{ isRegister ? 'Create Account' : 'Welcome Back!' }}</h2>
+        <p class="muted">Track your learning. Achieve your goals.</p>
+
+        @if (isRegister) {
+          <label>Full Name</label>
+          <input [(ngModel)]="authForm.name" placeholder="Enter your name">
+        }
+
+        <label>Email Address</label>
+        <input type="email" [(ngModel)]="authForm.email" placeholder="Enter email">
+
+        <label>Password</label>
+        <input type="password" [(ngModel)]="authForm.password" placeholder="Enter password">
+
+        @if (error) {
+          <div class="alert error">{{ error }}</div>
+        }
+
+        @if (message) {
+          <div class="alert success">{{ message }}</div>
+        }
+
+        <button class="primary-btn full-btn" (click)="login()" [disabled]="loading">
+          {{ loading ? 'Please wait...' : (isRegister ? 'Create Account' : 'Sign In') }}
+        </button>
+
+        <p class="switch-text">
+          {{ isRegister ? 'Already have an account?' : "Don't have an account?" }}
+          <a (click)="isRegister = !isRegister; error = ''; message = ''">
+            {{ isRegister ? 'Sign In' : 'Register' }}
+          </a>
+        </p>
+      </div>
+    </div>
+  }
+
+  @if (user) {
+    <div class="dashboard">
+
+      <aside class="sidebar">
+        <div class="brand sidebar-brand">
+          <div class="brand-icon">ST</div>
+          <h2>StudyTrack</h2>
+        </div>
+
+        <div class="profile">
+          <div class="avatar">{{ user.name?.charAt(0) || 'U' }}</div>
+          <div>
+            <strong>{{ user.name }}</strong>
+            <small>{{ user.role }}</small>
+          </div>
+        </div>
+
+        <p class="nav-heading">MENU</p>
+        <button class="nav-item active">▦ Dashboard</button>
+        <button class="nav-item" (click)="loadGoals()">▤ My Learning Goals</button>
+        <button class="nav-item" (click)="loadSessions()">◷ Study Sessions</button>
+        <button class="nav-item" (click)="loadRecommendations()">✧ Study Coach</button>
+
+        @if (user.role === 'LEARNER') {
+          <p class="nav-heading">PERMISSION TEST</p>
+          <button class="nav-item" (click)="testLearnerSettingsPermission()">
+            🔒 Test Settings Permission
+          </button>
+        }
+
+        @if (user.role === 'MENTOR') {
+          <p class="nav-heading">MANAGEMENT</p>
+          <button class="nav-item" (click)="message = 'Update the settings below.'">
+            ⚙ Settings
+          </button>
+        }
+
+        <div class="sidebar-bottom">
+          <button class="nav-item logout" (click)="logout()">↪ Logout</button>
+        </div>
+      </aside>
+
+      <main class="main-content">
+
+        <header class="topbar">
+          <div>
+            <h1>Dashboard</h1>
+            <p>Welcome back, {{ user.name }}! Here's your learning overview.</p>
+          </div>
+          <div class="date-label">{{ sessionForm.date }}</div>
+        </header>
+
+        @if (message) {
+          <div class="alert success">{{ message }}</div>
+        }
+
+        @if (error) {
+          <div class="alert error">{{ error }}</div>
+        }
+
+        <section class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon purple">▤</div>
+            <p>Total Goals</p>
+            <h2>{{ goals.length }}</h2>
+            <small>Learning goals</small>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon green">✓</div>
+            <p>Completed Topics</p>
+            <h2>{{ progress?.completedTopics || 0 }}</h2>
+            <small>Topics completed</small>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon orange">◷</div>
+            <p>Study Time</p>
+            <h2>{{ progress?.totalStudyHours || 0 }}h</h2>
+            <small>Total hours studied</small>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon blue">◎</div>
+            <p>Overall Progress</p>
+            <h2>{{ progress?.progressPercentage || 0 }}%</h2>
+            <small>Selected goal progress</small>
+          </div>
+        </section>
+
+        <section class="content-grid">
+
+          <div class="panel goals-panel">
+            <div class="panel-heading">
+              <div>
+                <h2>My Learning Goals</h2>
+                <p>Select a goal to view its topics and progress.</p>
+              </div>
+            </div>
+
+            @if (goals.length === 0) {
+              <p class="empty">No learning goals found.</p>
+            }
+
+            @for (goal of goals; track goal.id) {
+              <div
+                class="goal-item"
+                [class.selected]="selectedGoalId === goal.id"
+                (click)="selectGoal(goal.id)">
+                <div class="goal-symbol">▤</div>
+                <div class="goal-info">
+                  <strong>{{ goal.title }}</strong>
+                  <small>{{ goal.topics?.length || 0 }} topics</small>
+                </div>
+                <button class="small-btn" (click)="deleteGoal(goal.id, $event)">Delete</button>
+              </div>
+            }
+          </div>
+
+          <div class="panel progress-panel">
+            <h2>Goal Progress</h2>
+            <p class="muted">
+              {{ progress?.goalTitle || 'Select a learning goal' }}
+            </p>
+
+            <div class="progress-circle"
+              [style.--progress]="(progress?.progressPercentage || 0) + '%'">
+              <div class="circle-inner">
+                <strong>{{ progress?.progressPercentage || 0 }}%</strong>
+                <small>Completed</small>
+              </div>
+            </div>
+
+            <div class="progress-details">
+              <span>Completed topics</span>
+              <strong>{{ progress?.completedTopics || 0 }} / {{ progress?.totalTopics || 0 }}</strong>
+            </div>
+
+            <div class="progress-details">
+              <span>Total study minutes</span>
+              <strong>{{ progress?.totalStudyMinutes || 0 }}</strong>
+            </div>
+
+            <div class="progress-chart">
+              <h3>Topic Progress Chart</h3>
+
+              <div class="chart-label">
+                <span>Completed Topics</span>
+                <strong>{{ progress?.completedTopics || 0 }}</strong>
+              </div>
+
+              <div class="chart-track">
+                <div
+                  class="chart-completed"
+                  [style.width]="completedTopicPercentage + '%'">
+                </div>
+              </div>
+
+              <div class="chart-label">
+                <span>Remaining Topics</span>
+                <strong>{{ remainingTopics }}</strong>
+              </div>
+
+              <div class="chart-track">
+                <div
+                  class="chart-remaining"
+                  [style.width]="remainingTopicPercentage + '%'">
+                </div>
+              </div>
+
+              <p class="chart-summary">
+                Overall Completion: {{ completedTopicPercentage }}%
+              </p>
+            </div>
+          </div>
+
+        </section>
+
+        <section class="panel topics-panel">
+          <div class="panel-heading">
+            <div>
+              <h2>Topic Learning Path</h2>
+              <p>Complete prerequisite topics to unlock the next topic.</p>
+            </div>
+          </div>
+
+          @if (topics.length === 0) {
+            <p class="empty">Select a learning goal to see topics.</p>
+          }
+
+          @for (topic of topics; track topic.id) {
+            <div class="topic-row">
+              <div class="topic-status"
+                [class.done]="topic.completed"
+                [class.locked]="topic.locked">
+                {{ topic.completed ? '✓' : (topic.locked ? '🔒' : '○') }}
+              </div>
+
+              <div class="topic-info">
+                <strong>{{ topic.title }}</strong>
+                <small>
+                  @if (topic.completed) {
+                    Completed
+                  } @else if (topic.locked) {
+                    Locked — Complete prerequisites first
+                  } @else {
+                    Available to study
+                  }
+                </small>
+
+                @if (topic.missingPrerequisites?.length) {
+                  <small class="missing">
+                    Required: {{ topic.missingPrerequisites.join(', ') }}
+                  </small>
+                }
+              </div>
+
+              <button
+                class="small-btn"
+                [class.completed-btn]="topic.completed"
+                [disabled]="topic.locked"
+                (click)="toggleCompletion(topic)">
+                {{ topic.completed ? 'Reopen' : 'Complete' }}
+              </button>
+            </div>
+          }
+        </section>
+
+        <section class="panel manage-panel">
+          <h2>Manage Goals &amp; Topics</h2>
+          <p class="muted">Add a goal, then add topics and set prerequisites.</p>
+
+          <label>New Goal Title</label>
+          <input [(ngModel)]="goalForm.title" placeholder="e.g. Java Programming">
+          <button class="primary-btn" (click)="addGoal()">Add Goal</button>
+
+          @if (selectedGoalId) {
+            <label>New Topic (added to the selected goal)</label>
+            <input [(ngModel)]="topicForm.title" placeholder="e.g. Variables">
+            <button class="primary-btn" (click)="addTopic()">Add Topic</button>
+
+            @if (topics.length > 1) {
+              <label>Topic</label>
+              <select [(ngModel)]="prereqForm.topicId">
+                <option [ngValue]="0">Choose a topic</option>
+                @for (topic of topics; track topic.id) {
+                  <option [ngValue]="topic.id">{{ topic.title }}</option>
+                }
+              </select>
+
+              <label>Must complete first (prerequisite)</label>
+              <select [(ngModel)]="prereqForm.prerequisiteId">
+                <option [ngValue]="0">Choose a prerequisite</option>
+                @for (topic of topics; track topic.id) {
+                  <option [ngValue]="topic.id">{{ topic.title }}</option>
+                }
+              </select>
+
+              <button class="primary-btn" (click)="addPrerequisite()">Add Prerequisite</button>
+            }
+          }
+        </section>
+
+        <section class="content-grid lower-grid">
+
+          <div class="panel">
+            <h2>Log Study Session</h2>
+            <p class="muted">Record your learning activity.</p>
+
+            <label>Select Topic</label>
+            <select [(ngModel)]="sessionForm.topicId">
+              <option [ngValue]="0">Choose a topic</option>
+              @for (topic of topics; track topic.id) {
+                <option [ngValue]="topic.id" [disabled]="topic.locked">
+                  {{ topic.title }} {{ topic.locked ? '(Locked)' : '' }}
+                </option>
+              }
+            </select>
+
+            <label>Study Date</label>
+            <input type="date" [(ngModel)]="sessionForm.date">
+
+            <label>Study Duration (minutes)</label>
+            <input type="number" [(ngModel)]="sessionForm.minutes" min="5" max="480">
+
+            <label>Notes</label>
+            <textarea [(ngModel)]="sessionForm.note"
+              placeholder="What did you learn today?"></textarea>
+
+            <button class="primary-btn" (click)="addSession()">
+              Save Study Session
+            </button>
+          </div>
+
+          <div class="panel">
+            <h2>Smart Study Coach</h2>
+            <p class="muted">Personalized rule-based study recommendations.</p>
+
+            @if (recommendations.length === 0) {
+              <div class="coach-message">
+                <span>✧</span>
+                <p>Complete some topics and log study sessions to receive recommendations.</p>
+              </div>
+            }
+
+            @for (item of recommendations; track $index) {
+              <div class="recommendation">
+                <div class="recommend-icon">✧</div>
+                <div>
+                  <strong>{{ item.goalTitle }}</strong>
+                  <p>{{ item.recommendation || item.message || item.nextTopic || 'Keep learning consistently!' }}</p>
+                  <small>Progress: {{ item.progressPercentage || 0 }}%</small>
+                </div>
+              </div>
+            }
+          </div>
+
+        </section>
+
+        <section class="panel sessions-panel">
+          <h2>Recent Study Sessions</h2>
+          <p class="muted">Your recorded study activity.</p>
+
+          @if (sessions.length === 0) {
+            <p class="empty">No study sessions recorded yet.</p>
+          }
+
+          @for (session of sessions; track session.id) {
+            <div class="session-row">
+              <div class="session-symbol">◷</div>
+              <div class="session-info">
+                <strong>{{ session.topic?.title || 'Study session' }}</strong>
+                <small>{{ session.date | date:'mediumDate' }}</small>
+              </div>
+              <strong>{{ session.minutes }} min</strong>
+            </div>
+          }
+        </section>
+
+        @if (user.role === 'MENTOR') {
+          <section class="panel settings-panel">
+            <h2>Mentor Settings</h2>
+            <p class="muted">Configure study session and prerequisite limits.</p>
+
+            <label>Minimum study minutes</label>
+            <input type="number" [(ngModel)]="settings.minMinutes">
+
+            <label>Maximum study minutes</label>
+            <input type="number" [(ngModel)]="settings.maxMinutes">
+
+            <label>Maximum prerequisites per topic</label>
+            <input type="number" [(ngModel)]="settings.maxPrerequisites">
+
+            <button class="primary-btn" (click)="updateSettings()">Save Settings</button>
+          </section>
+        }
+
+        <footer>
+          StudyTrack · Study smarter, achieve more.
+        </footer>
+
+      </main>
+    </div>
+  }
+
+</div>
