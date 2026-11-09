@@ -773,3 +773,27 @@ footer {
   font-weight: bold;
   color: #6554df;
 }
+
+/* Show success/error messages on screen wherever the user has scrolled */
+.alert {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  max-width: min(560px, 92vw);
+  margin: 0;
+  padding: 14px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  pointer-events: none;
+}
+
+.alert.error {
+  border: 1px solid #e8a3ab;
+}
+
+.alert.success {
+  border: 1px solid #9fd8b6;
+}
