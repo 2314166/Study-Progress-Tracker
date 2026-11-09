@@ -1,13 +1,12 @@
-
 import { ChangeDetectorRef, Component, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { DatePipe } from '@angular/common';
+import { DatePipe, DecimalPipe } from '@angular/common';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [FormsModule, DatePipe],
+  imports: [FormsModule, DatePipe, DecimalPipe],
   templateUrl: './app.html',
   styleUrl: './app.css'
 })
@@ -32,14 +31,18 @@ export class App {
   topics: any[] = [];
   sessions: any[] = [];
   recommendations: any[] = [];
+  learners: any[] = [];
 
   selectedGoalId = 0;
+  selectedLearnerId = 0;
   progress: any = null;
 
   get completedTopicPercentage(): number {
     const total = Number(this.progress?.totalTopics || 0);
     const completed = Number(this.progress?.completedTopics || 0);
+
     if (total <= 0) return 0;
+
     return Math.min(100, Math.max(0, (completed / total) * 100));
   }
 
@@ -50,6 +53,7 @@ export class App {
   get remainingTopics(): number {
     const total = Number(this.progress?.totalTopics || 0);
     const completed = Number(this.progress?.completedTopics || 0);
+
     return Math.max(0, total - completed);
   }
 
@@ -84,6 +88,7 @@ export class App {
     };
   }
 
+  // LOGIN AND REGISTRATION
   login() {
     this.message = '';
     this.error = '';
@@ -124,22 +129,100 @@ export class App {
     });
   }
 
+  // LOAD DASHBOARD BASED ON ROLE
   loadDashboard() {
-    this.loadGoals();
-    this.loadRecommendations();
-    this.loadSessions();
+    this.message = '';
+    this.error = '';
 
     if (this.user?.role === 'MENTOR') {
-      this.http.get<any>(this.api + '/settings', this.headers).subscribe({
-        next: (data) => {
-          this.settings = data;
-          this.refresh();
-        },
-        error: (err) => this.showError(err)
-      });
+      // Mentor loads learners, not the learner-only /goals endpoint.
+      this.loadLearners();
+      this.loadMentorSettings();
+    } else {
+      this.loadGoals();
+      this.loadRecommendations();
+      this.loadSessions();
     }
   }
 
+  // MENTOR: LOAD ALL LEARNERS
+  loadLearners() {
+    this.http.get<any[]>(
+      this.api + '/goals/mentor/learners',
+      this.headers
+    ).subscribe({
+      next: (data) => {
+        this.learners = data || [];
+
+        if (this.learners.length > 0) {
+          const firstLearnerId = Number(this.learners[0].id);
+          this.selectLearner(firstLearnerId);
+        } else {
+          this.selectedLearnerId = 0;
+          this.goals = [];
+          this.topics = [];
+          this.sessions = [];
+          this.progress = null;
+          this.selectedGoalId = 0;
+          this.error = 'No learners found.';
+        }
+
+        this.refresh();
+      },
+      error: (err) => this.showError(err)
+    });
+  }
+
+  // MENTOR: SELECT A LEARNER
+  selectLearner(learnerId: number) {
+    const id = Number(learnerId);
+
+    if (!id) {
+      this.selectedLearnerId = 0;
+      this.goals = [];
+      this.topics = [];
+      this.sessions = [];
+      this.progress = null;
+      this.selectedGoalId = 0;
+      this.refresh();
+      return;
+    }
+
+    this.selectedLearnerId = id;
+    this.goals = [];
+    this.topics = [];
+    this.sessions = [];
+    this.progress = null;
+    this.selectedGoalId = 0;
+    this.error = '';
+    this.refresh();
+
+    this.http.get<any[]>(
+      this.api + `/goals/mentor/learner/${id}`,
+      this.headers
+    ).subscribe({
+      next: (data) => {
+        this.goals = data || [];
+
+        if (this.goals.length > 0) {
+          this.selectGoal(Number(this.goals[0].id));
+        } else {
+          this.topics = [];
+          this.sessions = [];
+          this.progress = {
+            totalTopics: 0,
+            completedTopics: 0,
+            totalMinutes: 0
+          };
+        }
+
+        this.refresh();
+      },
+      error: (err) => this.showError(err)
+    });
+  }
+
+  // LEARNER: LOAD OWN GOALS
   loadGoals(selectId?: number) {
     this.http.get<any[]>(this.api + '/goals', this.headers).subscribe({
       next: (data) => {
@@ -159,6 +242,7 @@ export class App {
           this.selectedGoalId = 0;
           this.topics = [];
           this.progress = null;
+          this.sessions = [];
           this.refresh();
         }
       },
@@ -166,6 +250,7 @@ export class App {
     });
   }
 
+  // SELECT A GOAL
   selectGoal(goalId: number) {
     const id = Number(goalId);
 
@@ -182,16 +267,59 @@ export class App {
     this.error = '';
     this.refresh();
 
-    this.http.get<any>(this.api + `/topics/${id}`, this.headers).subscribe({
+    this.http.get<any[]>(
+      this.api + `/topics/${id}`,
+      this.headers
+    ).subscribe({
       next: (data) => {
         this.topics = Array.isArray(data) ? data : [];
+
+        if (this.user?.role === 'MENTOR') {
+          // Mentor progress is calculated from the selected learner's topics.
+          const selectedGoal = this.goals.find(
+            (goal) => Number(goal.id) === id
+          );
+
+          const goalTopics = selectedGoal?.topics || [];
+
+          const totalMinutes = goalTopics.reduce(
+            (total: number, topic: any) => {
+              const topicMinutes = (topic.sessions || []).reduce(
+                (sum: number, session: any) =>
+                  sum + Number(session.minutes || 0),
+                0
+              );
+
+              return total + topicMinutes;
+            },
+            0
+          );
+
+          this.sessions = goalTopics.flatMap(
+            (topic: any) => topic.sessions || []
+          );
+
+          this.progress = {
+            totalTopics: this.topics.length,
+            completedTopics: this.topics.filter(
+              (topic: any) => topic.completed
+            ).length,
+            totalMinutes
+          };
+        } else {
+          this.loadLearnerProgress(id);
+        }
+
         this.refresh();
       },
       error: (err) => this.showError(err)
     });
+  }
 
+  // LEARNER: LOAD GOAL PROGRESS
+  private loadLearnerProgress(goalId: number) {
     this.http.get<any>(
-      this.api + `/sessions/progress/${id}`,
+      this.api + `/sessions/progress/${goalId}`,
       this.headers
     ).subscribe({
       next: (data) => {
@@ -205,7 +333,14 @@ export class App {
     });
   }
 
+  // LEARNER: COMPLETE OR REOPEN TOPIC
   toggleCompletion(topic: any) {
+    if (this.user?.role !== 'LEARNER') {
+      this.error = 'Mentors can view topics but cannot change completion.';
+      this.refresh();
+      return;
+    }
+
     this.message = '';
     this.error = '';
     this.refresh();
@@ -225,8 +360,15 @@ export class App {
     });
   }
 
+  // LEARNER: DELETE OWN GOAL
   deleteGoal(goalId: number, event: Event) {
     event.stopPropagation();
+
+    if (this.user?.role !== 'LEARNER') {
+      this.error = 'Mentors cannot delete learner goals.';
+      this.refresh();
+      return;
+    }
 
     if (!confirm('Delete this goal?')) return;
 
@@ -253,7 +395,10 @@ export class App {
     });
   }
 
+  // LEARNER: ADD GOAL
   addGoal() {
+    if (this.user?.role !== 'LEARNER') return;
+
     this.message = '';
     this.error = '';
 
@@ -280,7 +425,10 @@ export class App {
     });
   }
 
+  // LEARNER: ADD TOPIC
   addTopic() {
+    if (this.user?.role !== 'LEARNER') return;
+
     this.message = '';
     this.error = '';
 
@@ -313,7 +461,10 @@ export class App {
     });
   }
 
+  // LEARNER: ADD PREREQUISITE
   addPrerequisite() {
+    if (this.user?.role !== 'LEARNER') return;
+
     this.message = '';
     this.error = '';
 
@@ -347,7 +498,10 @@ export class App {
     });
   }
 
+  // LEARNER: ADD STUDY SESSION
   addSession() {
+    if (this.user?.role !== 'LEARNER') return;
+
     this.message = '';
     this.error = '';
 
@@ -380,8 +534,12 @@ export class App {
     });
   }
 
+  // LEARNER: LOAD OWN STUDY SESSIONS
   loadSessions() {
-    this.http.get<any[]>(this.api + '/sessions', this.headers).subscribe({
+    this.http.get<any[]>(
+      this.api + '/sessions',
+      this.headers
+    ).subscribe({
       next: (data) => {
         this.sessions = Array.isArray(data) ? data : [];
         this.refresh();
@@ -393,6 +551,7 @@ export class App {
     });
   }
 
+  // LEARNER: LOAD AI COACH RECOMMENDATIONS
   loadRecommendations() {
     this.http.get<any>(
       this.api + '/ai-coach/recommendations',
@@ -402,6 +561,7 @@ export class App {
         this.recommendations = Array.isArray(data)
           ? data
           : (data?.recommendations ?? data?.data ?? []);
+
         this.refresh();
       },
       error: (err) => {
@@ -411,7 +571,24 @@ export class App {
     });
   }
 
+  // MENTOR: LOAD SETTINGS
+  loadMentorSettings() {
+    this.http.get<any>(
+      this.api + '/settings',
+      this.headers
+    ).subscribe({
+      next: (data) => {
+        this.settings = data;
+        this.refresh();
+      },
+      error: (err) => this.showError(err)
+    });
+  }
+
+  // MENTOR: UPDATE SETTINGS
   updateSettings() {
+    if (this.user?.role !== 'MENTOR') return;
+
     this.message = '';
     this.error = '';
     this.refresh();
@@ -455,11 +632,13 @@ export class App {
         } else {
           this.error = err.error?.message || 'Permission test could not be completed.';
         }
+
         this.refresh();
       }
     });
   }
 
+  // DISPLAY ERROR
   showError(err: any) {
     const message = err?.error?.message;
 
@@ -470,6 +649,7 @@ export class App {
     this.refresh();
   }
 
+  // LOGOUT
   logout() {
     this.token = '';
     this.user = null;
@@ -477,8 +657,11 @@ export class App {
     this.topics = [];
     this.sessions = [];
     this.recommendations = [];
-    this.progress = null;
+    this.learners = [];
+
+    this.selectedLearnerId = 0;
     this.selectedGoalId = 0;
+    this.progress = null;
 
     this.goalForm = { title: '' };
     this.topicForm = { title: '' };

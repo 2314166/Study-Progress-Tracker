@@ -12,6 +12,23 @@ import { PrismaService } from '../prisma/prisma.service';
 export class GoalsService {
   constructor(private prisma: PrismaService) {}
 
+  // Get all learners for mentor dashboard
+  async getAllLearners() {
+    return this.prisma.user.findMany({
+      where: {
+        role: 'LEARNER',
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+      },
+      orderBy: {
+        name: 'asc',
+      },
+    });
+  }
+
   // Create a new goal for learner
   async createGoal(
     userId: number,

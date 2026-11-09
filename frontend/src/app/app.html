@@ -65,11 +65,12 @@
 
         <p class="nav-heading">MENU</p>
         <button class="nav-item active">▦ Dashboard</button>
-        <button class="nav-item" (click)="loadGoals()">▤ My Learning Goals</button>
-        <button class="nav-item" (click)="loadSessions()">◷ Study Sessions</button>
-        <button class="nav-item" (click)="loadRecommendations()">✧ Study Coach</button>
 
         @if (user.role === 'LEARNER') {
+          <button class="nav-item" (click)="loadGoals()">▤ My Learning Goals</button>
+          <button class="nav-item" (click)="loadSessions()">◷ Study Sessions</button>
+          <button class="nav-item" (click)="loadRecommendations()">✧ Study Coach</button>
+
           <p class="nav-heading">PERMISSION TEST</p>
           <button class="nav-item" (click)="testLearnerSettingsPermission()">
             🔒 Test Settings Permission
@@ -78,9 +79,8 @@
 
         @if (user.role === 'MENTOR') {
           <p class="nav-heading">MANAGEMENT</p>
-          <button class="nav-item" (click)="message = 'Update the settings below.'">
-            ⚙ Settings
-          </button>
+          <button class="nav-item" (click)="loadLearners()">👥 Refresh Learners</button>
+          <button class="nav-item" (click)="loadMentorSettings()">⚙ Settings</button>
         }
 
         <div class="sidebar-bottom">
@@ -92,8 +92,11 @@
 
         <header class="topbar">
           <div>
-            <h1>Dashboard</h1>
-            <p>Welcome back, {{ user.name }}! Here's your learning overview.</p>
+            <h1>{{ user.role === 'MENTOR' ? 'Mentor Dashboard' : 'Dashboard' }}</h1>
+            <p>
+              Welcome back, {{ user.name }}!
+              {{ user.role === 'MENTOR' ? 'Manage and monitor learner progress.' : "Here's your learning overview." }}
+            </p>
           </div>
           <div class="date-label">{{ sessionForm.date }}</div>
         </header>
@@ -104,6 +107,31 @@
 
         @if (error) {
           <div class="alert error">{{ error }}</div>
+        }
+
+        <!-- MENTOR LEARNER SELECTION -->
+        @if (user.role === 'MENTOR') {
+          <section class="panel mentor-selector">
+            <h2>👥 Select Learner</h2>
+            <p class="muted">Choose a learner to view their goals, topics and progress.</p>
+
+            <label>Available Learners</label>
+            <select
+              [ngModel]="selectedLearnerId"
+              (ngModelChange)="selectLearner($event)">
+              <option [ngValue]="0">Choose a learner</option>
+
+              @for (learner of learners; track learner.id) {
+                <option [ngValue]="learner.id">
+                  {{ learner.name }} ({{ learner.email }})
+                </option>
+              }
+            </select>
+
+            @if (learners.length === 0) {
+              <p class="empty">No learners are registered yet.</p>
+            }
+          </section>
         }
 
         <section class="stats-grid">
@@ -124,14 +152,18 @@
           <div class="stat-card">
             <div class="stat-icon orange">◷</div>
             <p>Study Time</p>
-            <h2>{{ progress?.totalStudyHours || 0 }}h</h2>
+            <h2>
+              {{ user.role === 'MENTOR'
+                ? ((progress?.totalMinutes || 0) / 60 | number:'1.0-1')
+                : (progress?.totalStudyHours || 0) }}h
+            </h2>
             <small>Total hours studied</small>
           </div>
 
           <div class="stat-card">
             <div class="stat-icon blue">◎</div>
             <p>Overall Progress</p>
-            <h2>{{ progress?.progressPercentage || 0 }}%</h2>
+            <h2>{{ completedTopicPercentage }}%</h2>
             <small>Selected goal progress</small>
           </div>
         </section>
@@ -141,13 +173,15 @@
           <div class="panel goals-panel">
             <div class="panel-heading">
               <div>
-                <h2>My Learning Goals</h2>
+                <h2>{{ user.role === 'MENTOR' ? 'Learner Goals' : 'My Learning Goals' }}</h2>
                 <p>Select a goal to view its topics and progress.</p>
               </div>
             </div>
 
             @if (goals.length === 0) {
-              <p class="empty">No learning goals found.</p>
+              <p class="empty">
+                {{ user.role === 'MENTOR' ? 'No goals found for this learner.' : 'No learning goals found.' }}
+              </p>
             }
 
             @for (goal of goals; track goal.id) {
@@ -160,7 +194,12 @@
                   <strong>{{ goal.title }}</strong>
                   <small>{{ goal.topics?.length || 0 }} topics</small>
                 </div>
-                <button class="small-btn" (click)="deleteGoal(goal.id, $event)">Delete</button>
+
+                @if (user.role === 'LEARNER') {
+                  <button class="small-btn" (click)="deleteGoal(goal.id, $event)">
+                    Delete
+                  </button>
+                }
               </div>
             }
           </div>
@@ -172,9 +211,9 @@
             </p>
 
             <div class="progress-circle"
-              [style.--progress]="(progress?.progressPercentage || 0) + '%'">
+              [style.--progress]="completedTopicPercentage + '%'">
               <div class="circle-inner">
-                <strong>{{ progress?.progressPercentage || 0 }}%</strong>
+                <strong>{{ completedTopicPercentage }}%</strong>
                 <small>Completed</small>
               </div>
             </div>
@@ -186,7 +225,11 @@
 
             <div class="progress-details">
               <span>Total study minutes</span>
-              <strong>{{ progress?.totalStudyMinutes || 0 }}</strong>
+              <strong>
+                {{ user.role === 'MENTOR'
+                  ? (progress?.totalMinutes || 0)
+                  : (progress?.totalStudyMinutes || 0) }}
+              </strong>
             </div>
 
             <div class="progress-chart">
@@ -198,8 +241,7 @@
               </div>
 
               <div class="chart-track">
-                <div
-                  class="chart-completed"
+                <div class="chart-completed"
                   [style.width]="completedTopicPercentage + '%'">
                 </div>
               </div>
@@ -210,8 +252,7 @@
               </div>
 
               <div class="chart-track">
-                <div
-                  class="chart-remaining"
+                <div class="chart-remaining"
                   [style.width]="remainingTopicPercentage + '%'">
                 </div>
               </div>
@@ -263,111 +304,137 @@
                 }
               </div>
 
-              <button
-                class="small-btn"
-                [class.completed-btn]="topic.completed"
-                [disabled]="topic.locked"
-                (click)="toggleCompletion(topic)">
-                {{ topic.completed ? 'Reopen' : 'Complete' }}
-              </button>
+              @if (user.role === 'LEARNER') {
+                <button
+                  class="small-btn"
+                  [class.completed-btn]="topic.completed"
+                  [disabled]="topic.locked"
+                  (click)="toggleCompletion(topic)">
+                  {{ topic.completed ? 'Reopen' : 'Complete' }}
+                </button>
+              } @else {
+                <span class="muted">Read only</span>
+              }
             </div>
           }
         </section>
 
-        <section class="panel manage-panel">
-          <h2>Manage Goals &amp; Topics</h2>
-          <p class="muted">Add a goal, then add topics and set prerequisites.</p>
+        <!-- LEARNER-ONLY MANAGEMENT -->
+        @if (user.role === 'LEARNER') {
+          <section class="panel manage-panel">
+            <h2>Manage Goals &amp; Topics</h2>
+            <p class="muted">Add a goal, then add topics and set prerequisites.</p>
 
-          <label>New Goal Title</label>
-          <input [(ngModel)]="goalForm.title" placeholder="e.g. Java Programming">
-          <button class="primary-btn" (click)="addGoal()">Add Goal</button>
+            <label>New Goal Title</label>
+            <input [(ngModel)]="goalForm.title" placeholder="e.g. Java Programming">
+            <button class="primary-btn" (click)="addGoal()">Add Goal</button>
 
-          @if (selectedGoalId) {
-            <label>New Topic (added to the selected goal)</label>
-            <input [(ngModel)]="topicForm.title" placeholder="e.g. Variables">
-            <button class="primary-btn" (click)="addTopic()">Add Topic</button>
+            @if (selectedGoalId) {
+              <label>New Topic (added to the selected goal)</label>
+              <input [(ngModel)]="topicForm.title" placeholder="e.g. Variables">
+              <button class="primary-btn" (click)="addTopic()">Add Topic</button>
 
-            @if (topics.length > 1) {
-              <label>Topic</label>
-              <select [(ngModel)]="prereqForm.topicId">
-                <option [ngValue]="0">Choose a topic</option>
-                @for (topic of topics; track topic.id) {
-                  <option [ngValue]="topic.id">{{ topic.title }}</option>
-                }
-              </select>
+              @if (topics.length > 1) {
+                <label>Topic</label>
+                <select [(ngModel)]="prereqForm.topicId">
+                  <option [ngValue]="0">Choose a topic</option>
+                  @for (topic of topics; track topic.id) {
+                    <option [ngValue]="topic.id">{{ topic.title }}</option>
+                  }
+                </select>
 
-              <label>Must complete first (prerequisite)</label>
-              <select [(ngModel)]="prereqForm.prerequisiteId">
-                <option [ngValue]="0">Choose a prerequisite</option>
-                @for (topic of topics; track topic.id) {
-                  <option [ngValue]="topic.id">{{ topic.title }}</option>
-                }
-              </select>
+                <label>Must complete first (prerequisite)</label>
+                <select [(ngModel)]="prereqForm.prerequisiteId">
+                  <option [ngValue]="0">Choose a prerequisite</option>
+                  @for (topic of topics; track topic.id) {
+                    <option [ngValue]="topic.id">{{ topic.title }}</option>
+                  }
+                </select>
 
-              <button class="primary-btn" (click)="addPrerequisite()">Add Prerequisite</button>
+                <button class="primary-btn" (click)="addPrerequisite()">Add Prerequisite</button>
+              }
             }
-          }
-        </section>
+          </section>
+        }
 
         <section class="content-grid lower-grid">
 
-          <div class="panel">
-            <h2>Log Study Session</h2>
-            <p class="muted">Record your learning activity.</p>
+          @if (user.role === 'LEARNER') {
+            <div class="panel">
+              <h2>Log Study Session</h2>
+              <p class="muted">Record your learning activity.</p>
 
-            <label>Select Topic</label>
-            <select [(ngModel)]="sessionForm.topicId">
-              <option [ngValue]="0">Choose a topic</option>
-              @for (topic of topics; track topic.id) {
-                <option [ngValue]="topic.id" [disabled]="topic.locked">
-                  {{ topic.title }} {{ topic.locked ? '(Locked)' : '' }}
-                </option>
-              }
-            </select>
+              <label>Select Topic</label>
+              <select [(ngModel)]="sessionForm.topicId">
+                <option [ngValue]="0">Choose a topic</option>
+                @for (topic of topics; track topic.id) {
+                  <option [ngValue]="topic.id" [disabled]="topic.locked">
+                    {{ topic.title }} {{ topic.locked ? '(Locked)' : '' }}
+                  </option>
+                }
+              </select>
 
-            <label>Study Date</label>
-            <input type="date" [(ngModel)]="sessionForm.date">
+              <label>Study Date</label>
+              <input type="date" [(ngModel)]="sessionForm.date">
 
-            <label>Study Duration (minutes)</label>
-            <input type="number" [(ngModel)]="sessionForm.minutes" min="5" max="480">
+              <label>Study Duration (minutes)</label>
+              <input type="number" [(ngModel)]="sessionForm.minutes" min="5" max="480">
 
-            <label>Notes</label>
-            <textarea [(ngModel)]="sessionForm.note"
-              placeholder="What did you learn today?"></textarea>
+              <label>Notes</label>
+              <textarea [(ngModel)]="sessionForm.note"
+                placeholder="What did you learn today?"></textarea>
 
-            <button class="primary-btn" (click)="addSession()">
-              Save Study Session
-            </button>
-          </div>
+              <button class="primary-btn" (click)="addSession()">
+                Save Study Session
+              </button>
+            </div>
+          }
 
-          <div class="panel">
-            <h2>Smart Study Coach</h2>
-            <p class="muted">Personalized rule-based study recommendations.</p>
+          @if (user.role === 'LEARNER') {
+            <div class="panel">
+              <h2>Smart Study Coach</h2>
+              <p class="muted">Personalized rule-based study recommendations.</p>
 
-            @if (recommendations.length === 0) {
-              <div class="coach-message">
-                <span>✧</span>
-                <p>Complete some topics and log study sessions to receive recommendations.</p>
-              </div>
-            }
-
-            @for (item of recommendations; track $index) {
-              <div class="recommendation">
-                <div class="recommend-icon">✧</div>
-                <div>
-                  <strong>{{ item.goalTitle }}</strong>
-                  <p>{{ item.recommendation || item.message || item.nextTopic || 'Keep learning consistently!' }}</p>
-                  <small>Progress: {{ item.progressPercentage || 0 }}%</small>
+              @if (recommendations.length === 0) {
+                <div class="coach-message">
+                  <span>✧</span>
+                  <p>Complete some topics and log study sessions to receive recommendations.</p>
                 </div>
-              </div>
-            }
-          </div>
+              }
+
+              @for (item of recommendations; track $index) {
+                <div class="recommendation">
+                  <div class="recommend-icon">✧</div>
+                  <div>
+                    <strong>{{ item.goalTitle }}</strong>
+                    <p>{{ item.recommendation || item.message || item.nextTopic || 'Keep learning consistently!' }}</p>
+                    <small>Progress: {{ item.progressPercentage || 0 }}%</small>
+                  </div>
+                </div>
+              }
+            </div>
+          }
+
+          @if (user.role === 'MENTOR') {
+            <div class="panel">
+              <h2>Mentor Overview</h2>
+              <p class="muted">You are viewing the selected learner's information.</p>
+              <p><strong>Selected learner:</strong>
+                {{ learners.find(l => l.id === selectedLearnerId)?.name || 'None' }}
+              </p>
+              <p><strong>Goals:</strong> {{ goals.length }}</p>
+              <p><strong>Topics:</strong> {{ progress?.totalTopics || 0 }}</p>
+              <p><strong>Completed:</strong> {{ progress?.completedTopics || 0 }}</p>
+              <p><strong>Study minutes:</strong> {{ progress?.totalMinutes || 0 }}</p>
+              <p class="muted">Learner records are view-only.</p>
+            </div>
+          }
 
         </section>
 
         <section class="panel sessions-panel">
-          <h2>Recent Study Sessions</h2>
-          <p class="muted">Your recorded study activity.</p>
+          <h2>{{ user.role === 'MENTOR' ? 'Selected Learner Study Sessions' : 'Recent Study Sessions' }}</h2>
+          <p class="muted">Recorded study activity.</p>
 
           @if (sessions.length === 0) {
             <p class="empty">No study sessions recorded yet.</p>

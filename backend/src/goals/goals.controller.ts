@@ -27,6 +27,7 @@ import {
 export class GoalsController {
   constructor(private readonly goalsService: GoalsService) {}
 
+  // Learner creates a goal
   @Post()
   @UseGuards(RolesGuard)
   @Roles(UserRole.LEARNER)
@@ -41,6 +42,7 @@ export class GoalsController {
     );
   }
 
+  // Learner views own goals
   @Get()
   @UseGuards(RolesGuard)
   @Roles(UserRole.LEARNER)
@@ -48,6 +50,15 @@ export class GoalsController {
     return this.goalsService.getMyGoals(req.user.id);
   }
 
+  // Mentor views all learners
+  @Get('mentor/learners')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.MENTOR)
+  getAllLearners() {
+    return this.goalsService.getAllLearners();
+  }
+
+  // Mentor views selected learner's goals
   @Get('mentor/learner/:learnerId')
   @UseGuards(RolesGuard)
   @Roles(UserRole.MENTOR)
@@ -57,6 +68,7 @@ export class GoalsController {
     return this.goalsService.getLearnerGoals(learnerId);
   }
 
+  // Learner deletes own goal
   @Delete(':id')
   @UseGuards(RolesGuard)
   @Roles(UserRole.LEARNER)
